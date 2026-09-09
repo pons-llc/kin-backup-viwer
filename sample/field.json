@@ -1,0 +1,147 @@
+{
+    "revision": "4",
+    "properties": {
+        "テーブル": {
+            "type": "SUBTABLE",
+            "code": "テーブル",
+            "noLabel": false,
+            "label": "テーブル",
+            "fields": {
+                "グループ選択_0": {
+                    "type": "GROUP_SELECT",
+                    "code": "グループ選択_0",
+                    "label": "グループ選択",
+                    "noLabel": false,
+                    "required": false,
+                    "entities": [],
+                    "defaultValue": []
+                },
+                "組織選択": {
+                    "type": "ORGANIZATION_SELECT",
+                    "code": "組織選択",
+                    "label": "組織選択",
+                    "noLabel": false,
+                    "required": false,
+                    "entities": [],
+                    "defaultValue": []
+                },
+                "ユーザー選択_0": {
+                    "type": "USER_SELECT",
+                    "code": "ユーザー選択_0",
+                    "label": "ユーザー選択",
+                    "noLabel": false,
+                    "required": false,
+                    "entities": [],
+                    "defaultValue": []
+                }
+            }
+        },
+        "レコード番号": {
+            "type": "RECORD_NUMBER",
+            "code": "レコード番号",
+            "label": "レコード番号",
+            "noLabel": false
+        },
+        "作業者": {
+            "type": "STATUS_ASSIGNEE",
+            "code": "作業者",
+            "label": "作業者",
+            "enabled": false
+        },
+        "グループ選択": {
+            "type": "GROUP_SELECT",
+            "code": "グループ選択",
+            "label": "グループ選択",
+            "noLabel": false,
+            "required": false,
+            "entities": [],
+            "defaultValue": []
+        },
+        "更新者": {
+            "type": "MODIFIER",
+            "code": "更新者",
+            "label": "更新者",
+            "noLabel": false
+        },
+        "作成者": {
+            "type": "CREATOR",
+            "code": "作成者",
+            "label": "作成者",
+            "noLabel": false
+        },
+        "文字列__1行_": {
+            "type": "SINGLE_LINE_TEXT",
+            "code": "文字列__1行_",
+            "label": "文字列 (1行)",
+            "noLabel": false,
+            "required": false,
+            "minLength": "",
+            "maxLength": "",
+            "expression": "",
+            "hideExpression": false,
+            "unique": false,
+            "defaultValue": ""
+        },
+        "ステータス": {
+            "type": "STATUS",
+            "code": "ステータス",
+            "label": "ステータス",
+            "enabled": false
+        },
+        "ユーザー選択": {
+            "type": "USER_SELECT",
+            "code": "ユーザー選択",
+            "label": "ユーザー選択",
+            "noLabel": false,
+            "required": false,
+            "entities": [],
+            "defaultValue": []
+        },
+        "更新日時": {
+            "type": "UPDATED_TIME",
+            "code": "更新日時",
+            "label": "更新日時",
+            "noLabel": false
+        },
+        "カテゴリー": {
+            "type": "CATEGORY",
+            "code": "カテゴリー",
+            "label": "カテゴリー",
+            "enabled": false
+        },
+        "日時": {
+            "type": "DATETIME",
+            "code": "日時",
+            "label": "日時",
+            "noLabel": false,
+            "required": false,
+            "unique": false,
+            "defaultValue": "",
+            "defaultNowValue": true
+        },
+        "添付ファイル": {
+            "type": "FILE",
+            "code": "添付ファイル",
+            "label": "添付ファイル",
+            "noLabel": false,
+            "required": false,
+            "thumbnailSize": "150"
+        },
+        "作成日時": {
+            "type": "CREATED_TIME",
+            "code": "作成日時",
+            "label": "作成日時",
+            "noLabel": false
+        },
+        "日付": {
+            "type": "DATE",
+            "code": "日付",
+            "label": "日付",
+            "noLabel": false,
+            "required": false,
+            "unique": false,
+            "defaultValue": "",
+            "defaultNowValue": true
+        }
+    }
+}

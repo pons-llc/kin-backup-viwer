@@ -1,0 +1,84 @@
+{
+    "layout": [
+        {
+            "type": "ROW",
+            "fields": [
+                {
+                    "type": "SINGLE_LINE_TEXT",
+                    "code": "文字列__1行_",
+                    "size": {
+                        "width": "193"
+                    }
+                },
+                {
+                    "type": "DATE",
+                    "code": "日付",
+                    "size": {
+                        "width": "117"
+                    }
+                },
+                {
+                    "type": "DATETIME",
+                    "code": "日時",
+                    "size": {
+                        "width": "196"
+                    }
+                },
+                {
+                    "type": "USER_SELECT",
+                    "code": "ユーザー選択",
+                    "size": {
+                        "width": "344"
+                    }
+                },
+                {
+                    "type": "GROUP_SELECT",
+                    "code": "グループ選択",
+                    "size": {
+                        "width": "344"
+                    }
+                }
+            ]
+        },
+        {
+            "type": "SUBTABLE",
+            "code": "テーブル",
+            "fields": [
+                {
+                    "type": "USER_SELECT",
+                    "code": "ユーザー選択_0",
+                    "size": {
+                        "width": "344"
+                    }
+                },
+                {
+                    "type": "ORGANIZATION_SELECT",
+                    "code": "組織選択",
+                    "size": {
+                        "width": "344"
+                    }
+                },
+                {
+                    "type": "GROUP_SELECT",
+                    "code": "グループ選択_0",
+                    "size": {
+                        "width": "344"
+                    }
+                }
+            ]
+        },
+        {
+            "type": "ROW",
+            "fields": [
+                {
+                    "type": "FILE",
+                    "code": "添付ファイル",
+                    "size": {
+                        "width": "207"
+                    }
+                }
+            ]
+        }
+    ],
+    "revision": "4"
+}

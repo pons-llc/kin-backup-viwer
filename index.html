@@ -1,0 +1,1373 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>kintone バックアップビューア</title>
+<link rel="stylesheet" href="51-modern-default.css">
+<style>
+  :root{
+    --accent:#3498db;
+    --accent-dark:#1d6fa5;
+    --border:#e3e7e8;
+    --bg:#f7f9fa;
+    --text:#333;
+    --muted:#888;
+    --danger:#e74c3c;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:'Hiragino Kaku Gothic ProN',Meiryo,sans-serif;font-size:14px;}
+  h1,h2,h3{margin:0 0 8px;}
+  button{font-family:inherit;font-size:14px;cursor:pointer;}
+  input,select{font-family:inherit;font-size:14px;}
+  a{color:var(--accent);}
+
+  #app-header{
+    display:flex;align-items:center;gap:16px;
+    background:#fff;border-bottom:1px solid var(--border);
+    padding:10px 20px;position:sticky;top:0;z-index:20;
+  }
+  #app-header h1{font-size:18px;color:var(--accent-dark);white-space:nowrap;}
+  #status-chips{display:flex;gap:6px;flex-wrap:wrap;flex:1;}
+  .chip{
+    display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:12px;
+    background:#eef3f5;color:var(--muted);font-size:12px;border:1px solid var(--border);
+  }
+  .chip.on{background:#e2f2fe;color:var(--accent-dark);border-color:#b9dff6;}
+  #app-header .spacer{flex:1;}
+  .btn{
+    display:inline-block;padding:0 14px;height:34px;line-height:32px;border-radius:4px;
+    border:1px solid var(--border);background:#fff;color:var(--accent);text-align:center;
+  }
+  .btn:hover{background:#eef3f5;}
+  .btn-primary{background:var(--accent);color:#fff;border-color:var(--accent-dark);}
+  .btn-primary:hover{background:var(--accent-dark);}
+  .btn-small{height:28px;line-height:26px;padding:0 10px;font-size:12px;}
+  .btn[disabled]{background:#dbdcdd;color:#bababa;border-color:#dbdcdd;cursor:not-allowed;}
+
+  main{max-width:1200px;margin:0 auto;padding:20px;}
+
+  /* ---- setup screen ---- */
+  #setup-card{background:#fff;border:1px solid var(--border);border-radius:6px;padding:24px 28px;}
+  #setup-card p.lead{color:var(--muted);margin-top:0;}
+  .drop-row{
+    display:flex;align-items:center;gap:12px;border:1px dashed var(--border);border-radius:6px;
+    padding:12px 14px;margin-bottom:10px;background:#fcfdfd;
+  }
+  .drop-row.dragover{background:#e2f2fe;border-color:var(--accent);}
+  .drop-row .label{width:150px;flex-shrink:0;font-weight:bold;}
+  .drop-row .label .req{color:var(--danger);margin-left:4px;}
+  .drop-row .filename{flex:1;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .drop-row .filename.set{color:var(--text);}
+  .drop-row input[type=file]{display:none;}
+  .row-actions{display:flex;gap:6px;}
+  .setup-options{display:flex;gap:24px;margin:18px 0;flex-wrap:wrap;}
+  .setup-options label{display:block;font-weight:bold;margin-bottom:4px;font-size:12px;color:var(--muted);}
+  #setup-msg{margin:12px 0;min-height:20px;}
+  #setup-msg.error{color:var(--danger);}
+  #setup-msg.warn{color:#b5860a;}
+  #setup-msg.ok{color:#2c974b;}
+  #load-btn-row{display:flex;align-items:center;gap:12px;margin-top:18px;}
+  #query-hint{font-size:12px;color:var(--muted);margin-top:18px;line-height:1.7;}
+  code{background:#eef3f5;padding:1px 5px;border-radius:3px;}
+
+  /* ---- main screen ---- */
+  #toolbar{
+    display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#fff;
+    border:1px solid var(--border);border-radius:6px;padding:12px 14px;margin-bottom:12px;
+  }
+  #toolbar input[type=search]{
+    height:34px;padding:0 10px;border:1px solid var(--border);border-radius:4px;min-width:220px;
+  }
+  #toolbar select{height:34px;border:1px solid var(--border);border-radius:4px;padding:0 6px;}
+  #record-count{color:var(--muted);font-size:12px;white-space:nowrap;}
+  #toolbar .spacer{flex:1;}
+
+  #filter-panel{
+    background:#fff;border:1px solid var(--border);border-radius:6px;padding:14px;margin-bottom:12px;
+    display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;
+  }
+  #filter-panel[hidden]{display:none;}
+  .filter-field{border:1px solid var(--border);border-radius:4px;padding:8px 10px;background:#fcfdfd;}
+  .filter-field .ff-label{font-weight:bold;font-size:12px;margin-bottom:6px;color:var(--accent-dark);}
+  .filter-choices{max-height:120px;overflow-y:auto;font-size:12px;}
+  .filter-choices label{display:block;margin-bottom:2px;cursor:pointer;}
+  .filter-field input[type=text],.filter-field input[type=date]{
+    width:100%;height:28px;border:1px solid var(--border);border-radius:4px;padding:0 6px;
+  }
+  .filter-daterange{display:flex;gap:6px;align-items:center;}
+
+  #table-wrap{background:#fff;border:1px solid var(--border);border-radius:6px;overflow:auto;}
+  table.data-table{border-collapse:collapse;width:100%;font-size:13px;}
+  table.data-table th{
+    background:var(--accent);color:#fff;text-align:left;padding:8px 10px;white-space:nowrap;
+    position:sticky;top:0;cursor:pointer;user-select:none;
+  }
+  table.data-table th:hover{background:var(--accent-dark);}
+  table.data-table th .sort-mark{opacity:.7;margin-left:4px;}
+  table.data-table td{padding:7px 10px;border-bottom:1px solid var(--border);vertical-align:top;max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  table.data-table tbody tr:hover{background:#f0f8fd;cursor:pointer;}
+  table.data-table tbody tr:nth-child(even){background:#fafcfd;}
+  table.data-table tbody tr:nth-child(even):hover{background:#f0f8fd;}
+  #empty-row{padding:40px;text-align:center;color:var(--muted);}
+
+  #pagination{display:flex;align-items:center;gap:10px;padding:10px 14px;border-top:1px solid var(--border);font-size:13px;flex-wrap:wrap;}
+  #pagination .spacer{flex:1;}
+
+  /* ---- detail modal ---- */
+  #overlay{
+    position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:flex-start;
+    justify-content:center;padding:32px 16px;z-index:100;overflow:auto;
+  }
+  #overlay[hidden]{display:none;}
+  #detail-panel{background:#fff;border-radius:8px;max-width:900px;width:100%;box-shadow:0 8px 30px rgba(0,0,0,.25);}
+  #detail-head{
+    display:flex;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid var(--border);
+    position:sticky;top:0;background:#fff;border-radius:8px 8px 0 0;
+  }
+  #detail-head h2{font-size:16px;color:var(--accent-dark);flex:1;}
+  #detail-body{padding:8px 20px 24px;}
+  .detail-section{margin-top:18px;}
+  .detail-section h3{
+    font-size:13px;color:#fff;background:var(--accent);display:inline-block;padding:4px 12px;border-radius:3px;
+  }
+  table.kv{width:100%;border-collapse:collapse;margin-top:8px;}
+  table.kv th{
+    width:180px;text-align:left;background:#f2f6f8;padding:8px 10px;border:1px solid var(--border);
+    font-weight:normal;color:var(--muted);vertical-align:top;
+  }
+  table.kv td{padding:8px 10px;border:1px solid var(--border);white-space:pre-wrap;word-break:break-word;}
+  table.subtable{width:100%;border-collapse:collapse;margin-top:8px;font-size:12px;}
+  table.subtable th{background:#f2f6f8;padding:6px 8px;border:1px solid var(--border);text-align:left;}
+  table.subtable td{padding:6px 8px;border:1px solid var(--border);white-space:pre-wrap;word-break:break-word;}
+  .chips{display:flex;flex-wrap:wrap;gap:4px;}
+  .value-chip{background:#e2f2fe;color:var(--accent-dark);border-radius:10px;padding:1px 9px;font-size:12px;}
+  .file-note,.muted-note{color:var(--muted);font-size:12px;}
+  .comment-item{border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-top:8px;background:#fcfdfd;}
+  .comment-meta{font-size:12px;color:var(--muted);margin-bottom:4px;}
+  .comment-body{white-space:pre-wrap;word-break:break-word;}
+
+  #loading-overlay{
+    position:fixed;inset:0;background:rgba(255,255,255,.75);display:flex;align-items:center;justify-content:center;
+    flex-direction:column;gap:10px;z-index:200;
+  }
+  #loading-overlay[hidden]{display:none;}
+  .spinner{width:36px;height:36px;border:4px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  #loading-progress{width:240px;height:6px;background:var(--border);border-radius:3px;overflow:hidden;}
+  #loading-progress-bar{height:100%;width:0%;background:var(--accent);transition:width .15s linear;}
+  #loading-sub{font-size:12px;color:var(--muted);}
+
+  .visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);}
+</style>
+</head>
+<body>
+
+<header id="app-header">
+  <h1>kintone バックアップビューア</h1>
+  <div id="status-chips"></div>
+  <div class="spacer"></div>
+  <button type="button" class="btn btn-small" id="back-to-setup-btn" hidden>設定に戻る</button>
+</header>
+
+<main>
+  <section id="setup">
+    <div id="setup-card">
+      <p class="lead">kintoneからバックアップしたCSV/JSONファイルを読み込みます。「レコード」のみ必須で、他は読み込ませた分だけ機能が増えます。</p>
+
+      <div class="drop-row" data-key="records">
+        <div class="label">レコード<span class="req">必須</span></div>
+        <div class="filename" data-role="filename">未選択</div>
+        <div class="row-actions">
+          <label class="btn btn-small" for="file-records">選択</label>
+          <input type="file" id="file-records" accept=".csv,text/csv">
+          <button type="button" class="btn btn-small" data-clear="records">クリア</button>
+        </div>
+      </div>
+
+      <div class="drop-row" data-key="comments">
+        <div class="label">コメント</div>
+        <div class="filename" data-role="filename">未選択</div>
+        <div class="row-actions">
+          <label class="btn btn-small" for="file-comments">選択</label>
+          <input type="file" id="file-comments" accept=".csv,text/csv">
+          <button type="button" class="btn btn-small" data-clear="comments">クリア</button>
+        </div>
+      </div>
+
+      <div class="drop-row" data-key="layout">
+        <div class="label">レイアウト</div>
+        <div class="filename" data-role="filename">未選択</div>
+        <div class="row-actions">
+          <label class="btn btn-small" for="file-layout">選択</label>
+          <input type="file" id="file-layout" accept=".json,application/json">
+          <button type="button" class="btn btn-small" data-clear="layout">クリア</button>
+        </div>
+      </div>
+
+      <div class="drop-row" data-key="field">
+        <div class="label">フィールド</div>
+        <div class="filename" data-role="filename">未選択</div>
+        <div class="row-actions">
+          <label class="btn btn-small" for="file-field">選択</label>
+          <input type="file" id="file-field" accept=".json,application/json">
+          <button type="button" class="btn btn-small" data-clear="field">クリア</button>
+        </div>
+      </div>
+
+      <div class="drop-row" data-key="views">
+        <div class="label">ビュー</div>
+        <div class="filename" data-role="filename">未選択</div>
+        <div class="row-actions">
+          <label class="btn btn-small" for="file-views">選択</label>
+          <input type="file" id="file-views" accept=".json,application/json">
+          <button type="button" class="btn btn-small" data-clear="views">クリア</button>
+        </div>
+      </div>
+
+      <div class="setup-options">
+        <div>
+          <label for="encoding-select">文字コード（CSV）</label>
+          <select id="encoding-select">
+            <option value="auto" selected>自動判定</option>
+            <option value="shift_jis">Shift_JIS</option>
+            <option value="utf-8">UTF-8</option>
+          </select>
+        </div>
+        <div>
+          <label for="tz-select">日時の表示</label>
+          <select id="tz-select">
+            <option value="local" selected>ブラウザのタイムゾーン</option>
+            <option value="utc">UTC</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="setup-msg"></div>
+
+      <div id="load-btn-row">
+        <button type="button" class="btn btn-primary" id="load-btn" disabled>読み込む</button>
+      </div>
+
+      <div id="query-hint">
+        Webサーバー経由で開いた場合、URLのクエリパラメータでファイルパスを指定すると自動で読み込みます（<code>file://</code> では動作しません）。<br>
+        例: <code>?records=records.csv&amp;comments=comments.csv&amp;layout=layout.json&amp;field=field.json&amp;views=views.json&amp;encoding=shift_jis</code>
+      </div>
+    </div>
+  </section>
+
+  <section id="viewer" hidden>
+    <div id="toolbar">
+      <input type="search" id="search-input" placeholder="レコードを検索...">
+      <select id="view-select" hidden></select>
+      <button type="button" class="btn btn-small" id="filter-toggle-btn" hidden>絞り込み</button>
+      <div class="spacer"></div>
+      <span id="record-count"></span>
+    </div>
+
+    <div id="filter-panel" hidden></div>
+
+    <div id="table-wrap">
+      <table class="data-table">
+        <thead id="table-head"></thead>
+        <tbody id="table-body"></tbody>
+      </table>
+      <div id="empty-row" hidden>該当するレコードがありません。</div>
+    </div>
+
+    <div id="pagination">
+      <button type="button" class="btn btn-small" id="page-prev">前へ</button>
+      <span id="page-info"></span>
+      <button type="button" class="btn btn-small" id="page-next">次へ</button>
+      <div class="spacer"></div>
+      <label>表示件数
+        <select id="page-size-select">
+          <option value="25">25</option>
+          <option value="50" selected>50</option>
+          <option value="100">100</option>
+          <option value="200">200</option>
+          <option value="all">すべて</option>
+        </select>
+      </label>
+    </div>
+  </section>
+</main>
+
+<div id="overlay" hidden>
+  <div id="detail-panel" role="dialog" aria-modal="true">
+    <div id="detail-head">
+      <h2 id="detail-title">レコード</h2>
+      <button type="button" class="btn btn-small" id="detail-close-btn">閉じる ✕</button>
+    </div>
+    <div id="detail-body"></div>
+  </div>
+</div>
+
+<div id="loading-overlay" hidden>
+  <div class="spinner"></div>
+  <div id="loading-text">読み込み中...</div>
+  <div id="loading-progress"><div id="loading-progress-bar"></div></div>
+  <div id="loading-sub"></div>
+</div>
+
+<script>
+"use strict";
+
+/* =========================================================
+   定数
+========================================================= */
+const PAIRED_TYPES = new Set(["USER_SELECT", "ORGANIZATION_SELECT", "GROUP_SELECT"]);
+const NON_CSV_FIELD_TYPES = new Set(["FILE", "LABEL", "SPACER", "HR", "REFERENCE_TABLE", "RECORD_NUMBER"]);
+const DATETIME_TYPES = new Set(["DATETIME", "CREATED_TIME", "UPDATED_TIME"]);
+const MULTI_VALUE_TYPES = new Set(["CHECK_BOX", "MULTI_SELECT"]);
+const LARGE_FILE_WARN_BYTES = 15 * 1024 * 1024;
+
+/* =========================================================
+   状態
+========================================================= */
+const state = {
+  files: { records: null, comments: null, layout: null, field: null, views: null }, // File objects (setup screen)
+  encodingMode: "auto",
+  tzMode: "local",
+
+  headers: [],
+  plan: null,
+  fieldDefsByCode: new Map(),
+  fieldDefsByLabel: new Map(),
+  layoutJson: null,
+  viewsJson: null,
+  comments: new Map(), // recordNumber -> [{no,user,date,body}]
+
+  records: [], // built record views
+  displayColumns: [], // [{code|null, label, type, group, span}]
+  currentViewName: "",
+
+  searchQuery: "",
+  advancedFilters: {}, // key -> {type:'choice', selected:Set} | {type:'range', from, to} | {type:'text', value}
+
+  sortKey: null,
+  sortDir: "asc",
+  page: 1,
+  pageSize: 50,
+};
+
+/* =========================================================
+   ユーティリティ
+========================================================= */
+function $(sel, root) { return (root || document).querySelector(sel); }
+function $all(sel, root) { return Array.from((root || document).querySelectorAll(sel)); }
+
+function el(tag, attrs, children) {
+  const node = document.createElement(tag);
+  if (attrs) {
+    for (const k in attrs) {
+      if (k === "class") node.className = attrs[k];
+      else if (k === "text") node.textContent = attrs[k];
+      else if (k.startsWith("on") && typeof attrs[k] === "function") node.addEventListener(k.slice(2), attrs[k]);
+      else node.setAttribute(k, attrs[k]);
+    }
+  }
+  (children || []).forEach((c) => {
+    if (c == null) return;
+    node.appendChild(typeof c === "string" ? document.createTextNode(c) : c);
+  });
+  return node;
+}
+
+function showLoading(text) {
+  $("#loading-text").textContent = text || "読み込み中...";
+  $("#loading-progress-bar").style.width = "0%";
+  $("#loading-sub").textContent = "";
+  $("#loading-overlay").hidden = false;
+}
+function hideLoading() { $("#loading-overlay").hidden = true; }
+function setLoadingProgress(text, ratio) {
+  if (text) $("#loading-text").textContent = text;
+  if (typeof ratio === "number") {
+    $("#loading-progress-bar").style.width = Math.round(Math.max(0, Math.min(1, ratio)) * 100) + "%";
+    $("#loading-sub").textContent = Math.round(Math.max(0, Math.min(1, ratio)) * 100) + "%";
+  }
+}
+function nextFrame() { return new Promise((r) => setTimeout(r, 0)); }
+
+function setSetupMsg(msg, level) {
+  const box = $("#setup-msg");
+  box.textContent = msg || "";
+  box.className = level ? level : "";
+}
+
+/* ---- エンコーディング ---- */
+function stripBOM(text) { return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text; }
+
+function decodeBuffer(buf, mode) {
+  const bytes = new Uint8Array(buf);
+  if (mode === "utf-8") return stripBOM(new TextDecoder("utf-8").decode(bytes));
+  if (mode === "shift_jis") return new TextDecoder("shift_jis").decode(bytes);
+  if (bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
+    return stripBOM(new TextDecoder("utf-8").decode(bytes));
+  }
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch (e) {
+    return new TextDecoder("shift_jis").decode(bytes);
+  }
+}
+
+async function fileToText(file, mode) {
+  const buf = await file.arrayBuffer();
+  return decodeBuffer(buf, mode);
+}
+
+async function urlToArrayBuffer(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`${url} の取得に失敗しました (HTTP ${res.status})`);
+  return res.arrayBuffer();
+}
+
+/* ---- CSV パーサ (RFC4180 風、引用符内の改行・エスケープに対応) ----
+   文字数の大きいテキストを一気に処理するとUIがフリーズするため、一定文字数ごとに
+   setTimeout(0) でイベントループへ処理を返す。onProgress(0-1) で進捗を通知できる。 */
+const CSV_PARSE_YIELD_CHARS = 300000;
+
+async function parseCSV(text, onProgress) {
+  const rows = [];
+  let row = [];
+  let field = "";
+  let inQuotes = false;
+  const len = text.length;
+  let i = 0;
+  let sinceYield = 0;
+  while (i < len) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i += 2; sinceYield += 2; continue; }
+        inQuotes = false; i++; sinceYield++; continue;
+      }
+      field += c; i++; sinceYield++; continue;
+    }
+    if (c === '"') { inQuotes = true; i++; sinceYield++; continue; }
+    if (c === ",") { row.push(field); field = ""; i++; sinceYield++; continue; }
+    if (c === "\r") { i++; sinceYield++; continue; }
+    if (c === "\n") { row.push(field); rows.push(row); row = []; field = ""; i++; sinceYield++; continue; }
+    field += c; i++; sinceYield++;
+
+    if (sinceYield >= CSV_PARSE_YIELD_CHARS) {
+      sinceYield = 0;
+      if (onProgress) onProgress(i / len);
+      await nextFrame();
+    }
+  }
+  if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }
+  // 末尾の空行を除去
+  while (rows.length && rows[rows.length - 1].length === 1 && rows[rows.length - 1][0] === "") rows.pop();
+  if (onProgress) onProgress(1);
+  return rows;
+}
+
+/* ---- 日時変換 (UTC -> 表示タイムゾーン) ---- */
+function parseKintoneDateTime(raw) {
+  if (!raw) return null;
+  const m = String(raw).trim().match(/^(\d{4})[\/-](\d{2})[\/-](\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?/);
+  if (!m) return null;
+  const iso = `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6] || "00"}Z`;
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function formatDateTime(raw, tzMode) {
+  const d = parseKintoneDateTime(raw);
+  if (!d) return raw || "";
+  if (tzMode === "utc") {
+    return d.toISOString().slice(0, 16).replace("T", " ") + " UTC";
+  }
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const formatted = new Intl.DateTimeFormat("ja-JP", {
+    year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false,
+  }).format(d);
+  return `${formatted} (${tz})`;
+}
+
+function escapeForFilename(s) { return s; }
+
+/* =========================================================
+   レイアウト解析
+========================================================= */
+function flattenLayout(layoutJson) {
+  const main = [];
+  const subtables = [];
+  const skipped = [];
+
+  function pushMain(f) {
+    if (!f || !f.code) return;
+    if (NON_CSV_FIELD_TYPES.has(f.type)) { skipped.push(f); return; }
+    main.push({ code: f.code, type: f.type });
+  }
+  function pushSubtable(code, fields) {
+    const list = [];
+    (fields || []).forEach((sf) => {
+      if (NON_CSV_FIELD_TYPES.has(sf.type)) { skipped.push(sf); return; }
+      list.push({ code: sf.code, type: sf.type });
+    });
+    subtables.push({ code, fields: list });
+  }
+  function walk(blocks) {
+    (blocks || []).forEach((block) => {
+      if (block.type === "SUBTABLE") {
+        pushSubtable(block.code, block.fields);
+      } else if (block.type === "GROUP" && Array.isArray(block.layout)) {
+        walk(block.layout);
+      } else if (Array.isArray(block.fields)) {
+        block.fields.forEach((f) => {
+          if (f.type === "SUBTABLE") pushSubtable(f.code, f.fields);
+          else pushMain(f);
+        });
+      }
+    });
+  }
+  walk(layoutJson.layout);
+  return { main, subtables, skipped };
+}
+
+function planColumns(headers, layoutJson) {
+  const idxStart = headers.indexOf("レコードの開始行");
+  const idxRecNum = headers.indexOf("レコード番号");
+  const plan = {
+    idxStart, idxRecNum,
+    main: [], system: [], subtables: [], skippedFields: [],
+    flatFallback: true,
+  };
+  let pointer = idxRecNum >= 0 ? idxRecNum + 1 : (idxStart >= 0 ? idxStart + 1 : 0);
+
+  if (layoutJson && Array.isArray(layoutJson.layout)) {
+    const { main, subtables, skipped } = flattenLayout(layoutJson);
+    plan.skippedFields = skipped;
+
+    let ok = true;
+    const mainPlan = [];
+    for (const f of main) {
+      const span = PAIRED_TYPES.has(f.type) ? 2 : 1;
+      if (pointer + span > headers.length) { ok = false; break; }
+      mainPlan.push({ code: f.code, type: f.type, label: headers[pointer], col: pointer, span });
+      pointer += span;
+    }
+
+    if (ok) {
+      let subtableWidth = 0;
+      const subtablesTmp = subtables.map((st) => {
+        let w = 0;
+        const fields = st.fields.map((f) => {
+          const span = PAIRED_TYPES.has(f.type) ? 2 : 1;
+          w += span;
+          return { code: f.code, type: f.type, span };
+        });
+        subtableWidth += w;
+        return { code: st.code, fields, width: w };
+      });
+      const subtableStart = headers.length - subtableWidth;
+      if (subtableStart < pointer) { ok = false; }
+      else {
+        const systemPlan = [];
+        let p = pointer;
+        while (p < subtableStart) {
+          const span = (p + 1 < subtableStart && headers[p + 1] === headers[p] + "（表示名）") ? 2 : 1;
+          systemPlan.push({ label: headers[p], col: p, span });
+          p += span;
+        }
+        const subtablePlan = [];
+        let sp = subtableStart;
+        for (const st of subtablesTmp) {
+          const fields = st.fields.map((f) => {
+            const entry = { code: f.code, type: f.type, span: f.span, col: sp };
+            sp += f.span;
+            return entry;
+          });
+          subtablePlan.push({ code: st.code, fields });
+        }
+        plan.main = mainPlan;
+        plan.system = systemPlan;
+        plan.subtables = subtablePlan;
+        plan.flatFallback = false;
+      }
+    }
+  }
+
+  if (plan.flatFallback) {
+    const systemPlan = [];
+    let p = pointer;
+    while (p < headers.length) {
+      const span = (p + 1 < headers.length && headers[p + 1] === headers[p] + "（表示名）") ? 2 : 1;
+      systemPlan.push({ label: headers[p], col: p, span });
+      p += span;
+    }
+    plan.main = [];
+    plan.subtables = [];
+    plan.system = systemPlan;
+  }
+  return plan;
+}
+
+/* =========================================================
+   field.json 解析
+========================================================= */
+function indexFieldDefs(fieldJson) {
+  const byCode = new Map();
+  const byLabel = new Map();
+  function add(def) {
+    if (!def || !def.code) return;
+    byCode.set(def.code, def);
+    if (def.label && !byLabel.has(def.label)) byLabel.set(def.label, def);
+  }
+  if (fieldJson && fieldJson.properties) {
+    Object.values(fieldJson.properties).forEach((def) => {
+      add(def);
+      if (def.type === "SUBTABLE" && def.fields) {
+        Object.values(def.fields).forEach((sub) => add(sub));
+      }
+    });
+  }
+  return { byCode, byLabel };
+}
+
+/* =========================================================
+   レコード CSV -> レコード配列
+   行数が多い場合にUIがフリーズしないよう、一定件数ごとにイベントループへ処理を返す。
+========================================================= */
+const ROW_CHUNK_SIZE = 5000;
+
+async function groupRows(rows, plan, onProgress) {
+  const dataRows = rows.slice(1); // ヘッダー除く
+  const groups = [];
+  let current = null;
+  for (let idx = 0; idx < dataRows.length; idx++) {
+    const row = dataRows[idx];
+    const isStart = plan.idxStart >= 0 ? row[plan.idxStart] === "*" : true;
+    if (isStart || !current) {
+      current = { recordNumber: plan.idxRecNum >= 0 ? row[plan.idxRecNum] : String(groups.length + 1), rows: [row] };
+      groups.push(current);
+    } else {
+      current.rows.push(row);
+    }
+    if (idx % ROW_CHUNK_SIZE === ROW_CHUNK_SIZE - 1) {
+      if (onProgress) onProgress(idx / dataRows.length);
+      await nextFrame();
+    }
+  }
+  if (onProgress) onProgress(1);
+  return groups;
+}
+
+async function buildRecordViews(groups, plan, onProgress) {
+  const records = [];
+  for (let idx = 0; idx < groups.length; idx++) {
+    records.push(buildRecordView(groups[idx], plan));
+    if (idx % ROW_CHUNK_SIZE === ROW_CHUNK_SIZE - 1) {
+      if (onProgress) onProgress(idx / groups.length);
+      await nextFrame();
+    }
+  }
+  if (onProgress) onProgress(1);
+  return records;
+}
+
+function cellValue(span, row, col) {
+  if (span === 2) return { value: row[col] || "", name: row[col + 1] || "" };
+  return row[col] || "";
+}
+
+function buildRecordView(group, plan) {
+  const first = group.rows[0];
+  const main = {};
+  plan.main.forEach((f) => { main[f.code] = { type: f.type, label: f.label, val: cellValue(f.span, first, f.col) }; });
+
+  const system = plan.system.map((s) => ({ label: s.label, val: cellValue(s.span, first, s.col) }));
+
+  const subtables = {};
+  plan.subtables.forEach((st) => {
+    const entries = [];
+    group.rows.forEach((row) => {
+      const hasData = st.fields.some((f) => {
+        const v = cellValue(f.span, row, f.col);
+        return (typeof v === "string" ? v : v.value || v.name).trim() !== "";
+      });
+      if (!hasData) return;
+      const entry = {};
+      st.fields.forEach((f) => { entry[f.code] = { type: f.type, val: cellValue(f.span, row, f.col) }; });
+      entries.push(entry);
+    });
+    subtables[st.code] = entries;
+  });
+
+  return { recordNumber: group.recordNumber, main, system, subtables, rawFirstRow: first };
+}
+
+/* =========================================================
+   コメント CSV
+========================================================= */
+async function buildCommentsMap(rows, onProgress) {
+  const map = new Map();
+  if (!rows.length) return map;
+  const headers = rows[0];
+  const idxRec = headers.indexOf("レコード番号");
+  const idxNo = headers.indexOf("コメント番号");
+  const idxUser = headers.indexOf("投稿ユーザー");
+  const idxDate = headers.indexOf("投稿日時");
+  const idxBody = headers.indexOf("コメント内容");
+  if (idxRec < 0) return map;
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    const rec = row[idxRec];
+    if (rec == null) continue;
+    const item = {
+      no: idxNo >= 0 ? row[idxNo] : String(i),
+      user: idxUser >= 0 ? row[idxUser] : "",
+      date: idxDate >= 0 ? row[idxDate] : "",
+      body: idxBody >= 0 ? row[idxBody] : "",
+    };
+    if (!map.has(rec)) map.set(rec, []);
+    map.get(rec).push(item);
+    if (i % ROW_CHUNK_SIZE === ROW_CHUNK_SIZE - 1) {
+      if (onProgress) onProgress(i / rows.length);
+      await nextFrame();
+    }
+  }
+  map.forEach((list) => list.sort((a, b) => Number(a.no) - Number(b.no)));
+  if (onProgress) onProgress(1);
+  return map;
+}
+
+/* =========================================================
+   表示カラムの決定 (デフォルト / ビュー選択時)
+========================================================= */
+function defaultDisplayColumns() {
+  const cols = [{ code: "$recordNumber", label: "レコード番号", type: "RECORD_NUMBER", group: "special" }];
+  state.plan.main.forEach((f) => cols.push({ code: f.code, label: fieldLabel(f.code, f.label), type: f.type, group: "main" }));
+  if (state.plan.flatFallback) {
+    state.plan.system.forEach((s, idx) => cols.push({ code: "$sys:" + idx, label: s.label, type: guessTypeByLabel(s.label), group: "system", sysIndex: idx }));
+  }
+  return cols;
+}
+
+function fieldLabel(code, fallback) {
+  const def = state.fieldDefsByCode.get(code);
+  return (def && def.label) || fallback || code;
+}
+
+function guessTypeByLabel(label) {
+  const def = state.fieldDefsByLabel.get(label);
+  if (def) return def.type;
+  if (DATETIME_LABELS.has(label)) return "DATETIME";
+  return null;
+}
+const DATETIME_LABELS = new Set(["更新日時", "作成日時", "投稿日時"]);
+
+function columnsForView(viewName) {
+  if (!viewName || !state.viewsJson || !state.viewsJson.views || !state.viewsJson.views[viewName]) {
+    return defaultDisplayColumns();
+  }
+  const view = state.viewsJson.views[viewName];
+  if (view.type !== "LIST" || !Array.isArray(view.fields)) return defaultDisplayColumns();
+  const cols = [];
+  view.fields.forEach((code) => {
+    if (code === "レコード番号") { cols.push({ code: "$recordNumber", label: "レコード番号", type: "RECORD_NUMBER", group: "special" }); return; }
+    const mainField = state.plan.main.find((f) => f.code === code);
+    if (mainField) { cols.push({ code, label: fieldLabel(code, mainField.label), type: mainField.type, group: "main" }); return; }
+    const sysIdx = state.plan.system.findIndex((s) => s.label === code);
+    if (sysIdx >= 0) { cols.push({ code: "$sys:" + sysIdx, label: state.plan.system[sysIdx].label, type: guessTypeByLabel(code), group: "system", sysIndex: sysIdx }); return; }
+    cols.push({ code: "$unknown:" + code, label: code, type: null, group: "unknown" });
+  });
+  return cols.length ? cols : defaultDisplayColumns();
+}
+
+/* =========================================================
+   セルの表示用文字列 / ソート値取得
+========================================================= */
+function rawColumnValue(record, col) {
+  if (col.code === "$recordNumber") return { value: record.recordNumber, name: "" };
+  if (col.group === "main") { const f = record.main[col.code]; return f ? f.val : ""; }
+  if (col.group === "system") { const s = record.system[col.sysIndex]; return s ? s.val : ""; }
+  return "";
+}
+
+function displayString(val, type, tzMode) {
+  let raw = typeof val === "string" ? val : (val && (val.name || val.value)) || "";
+  if (type && DATETIME_TYPES.has(type)) return formatDateTime(raw, tzMode);
+  if (type && MULTI_VALUE_TYPES.has(type) && raw.indexOf("\n") >= 0) return raw.split("\n").filter(Boolean).join(", ");
+  return raw;
+}
+
+function cellText(record, col) {
+  const val = rawColumnValue(record, col);
+  return displayString(val, col.type, state.tzMode);
+}
+
+function sortValue(record, col) {
+  const val = rawColumnValue(record, col);
+  const raw = typeof val === "string" ? val : (val.name || val.value || "");
+  if (col.type && DATETIME_TYPES.has(col.type)) {
+    const d = parseKintoneDateTime(raw);
+    return d ? d.getTime() : -Infinity;
+  }
+  const num = Number(raw);
+  if (raw !== "" && !isNaN(num)) return num;
+  return raw;
+}
+
+/* =========================================================
+   絞り込み用フィールド検出
+========================================================= */
+function buildFilterSpecs() {
+  const specs = [];
+  const candidateCols = state.displayColumns.filter((c) => c.code !== "$recordNumber");
+  candidateCols.forEach((col) => {
+    if (col.type && DATETIME_TYPES.has(col.type)) {
+      specs.push({ key: col.code, label: col.label, kind: "range", col });
+      return;
+    }
+    if (col.type === "DATE") {
+      specs.push({ key: col.code, label: col.label, kind: "range", col, dateOnly: true });
+      return;
+    }
+    const values = new Set();
+    let tooMany = false;
+    for (const r of state.records) {
+      const txt = cellText(r, col);
+      if (txt === "") continue;
+      const parts = (col.type && MULTI_VALUE_TYPES.has(col.type)) ? txt.split(",").map((s) => s.trim()) : [txt];
+      parts.forEach((p) => values.add(p));
+      if (values.size > 25) { tooMany = true; break; }
+    }
+    if (!tooMany && values.size > 0 && values.size <= 25) {
+      specs.push({ key: col.code, label: col.label, kind: "choice", col, choices: Array.from(values).sort() });
+    } else {
+      specs.push({ key: col.code, label: col.label, kind: "text", col });
+    }
+  });
+  return specs;
+}
+
+/* =========================================================
+   フィルタ / 検索 適用
+========================================================= */
+function recordMatchesSearch(record, query) {
+  if (!query) return true;
+  const q = query.toLowerCase();
+  for (const col of state.displayColumns) {
+    const txt = cellText(record, col);
+    if (txt && txt.toLowerCase().indexOf(q) >= 0) return true;
+  }
+  return false;
+}
+
+function recordMatchesFilters(record, specs) {
+  for (const spec of specs) {
+    const state_ = state.advancedFilters[spec.key];
+    if (!state_) continue;
+    const txt = cellText(record, spec.col);
+    if (spec.kind === "choice") {
+      if (!state_.selected || state_.selected.size === 0) continue;
+      const parts = (spec.col.type && MULTI_VALUE_TYPES.has(spec.col.type)) ? txt.split(",").map((s) => s.trim()) : [txt];
+      const hit = parts.some((p) => state_.selected.has(p));
+      if (!hit) return false;
+    } else if (spec.kind === "text") {
+      if (state_.value && txt.toLowerCase().indexOf(state_.value.toLowerCase()) < 0) return false;
+    } else if (spec.kind === "range") {
+      if (!state_.from && !state_.to) continue;
+      const raw = typeof rawColumnValue(record, spec.col) === "string" ? rawColumnValue(record, spec.col) : (rawColumnValue(record, spec.col).value);
+      let t = null;
+      if (spec.dateOnly) {
+        const m = String(raw || "").match(/^(\d{4})[\/-](\d{2})[\/-](\d{2})/);
+        t = m ? new Date(`${m[1]}-${m[2]}-${m[3]}T00:00:00Z`).getTime() : null;
+      } else {
+        const d = parseKintoneDateTime(raw);
+        t = d ? d.getTime() : null;
+      }
+      if (t == null) return false;
+      if (state_.from && t < state_.from) return false;
+      if (state_.to && t > state_.to) return false;
+    }
+  }
+  return true;
+}
+
+function getFilteredSortedRecords() {
+  const specs = state.filterSpecs || [];
+  let list = state.records.filter((r) => recordMatchesSearch(r, state.searchQuery) && recordMatchesFilters(r, specs));
+  if (state.sortKey) {
+    const col = state.displayColumns.find((c) => c.code === state.sortKey);
+    if (col) {
+      const dir = state.sortDir === "asc" ? 1 : -1;
+      list = list.slice().sort((a, b) => {
+        const va = sortValue(a, col), vb = sortValue(b, col);
+        if (va < vb) return -1 * dir;
+        if (va > vb) return 1 * dir;
+        return 0;
+      });
+    }
+  }
+  return list;
+}
+
+/* =========================================================
+   描画: ステータスチップ
+========================================================= */
+function renderStatusChips() {
+  const box = $("#status-chips");
+  box.textContent = "";
+  const defs = [
+    ["レコード", !!state.records.length],
+    ["コメント", state.comments.size > 0],
+    ["レイアウト", !!state.layoutJson],
+    ["フィールド", state.fieldDefsByCode.size > 0],
+    ["ビュー", !!(state.viewsJson && state.viewsJson.views && Object.keys(state.viewsJson.views).length)],
+  ];
+  defs.forEach(([label, on]) => {
+    box.appendChild(el("span", { class: "chip" + (on ? " on" : "") }, [`${label} ${on ? "✓" : "—"}`]));
+  });
+}
+
+/* =========================================================
+   描画: 一覧テーブル
+========================================================= */
+function renderTable() {
+  const filtered = getFilteredSortedRecords();
+  $("#record-count").textContent = `${filtered.length} / ${state.records.length} 件`;
+
+  const totalPages = state.pageSize === "all" ? 1 : Math.max(1, Math.ceil(filtered.length / state.pageSize));
+  if (state.page > totalPages) state.page = totalPages;
+  const pageRecords = state.pageSize === "all" ? filtered : filtered.slice((state.page - 1) * state.pageSize, state.page * state.pageSize);
+
+  const thead = $("#table-head");
+  thead.textContent = "";
+  const headRow = el("tr");
+  state.displayColumns.forEach((col) => {
+    const th = el("th", {
+      onclick: () => {
+        if (state.sortKey === col.code) state.sortDir = state.sortDir === "asc" ? "desc" : "asc";
+        else { state.sortKey = col.code; state.sortDir = "asc"; }
+        renderTable();
+      },
+    }, [col.label]);
+    if (state.sortKey === col.code) th.appendChild(el("span", { class: "sort-mark" }, [state.sortDir === "asc" ? "▲" : "▼"]));
+    headRow.appendChild(th);
+  });
+  thead.appendChild(headRow);
+
+  const tbody = $("#table-body");
+  tbody.textContent = "";
+  pageRecords.forEach((record) => {
+    const tr = el("tr", { onclick: () => openDetail(record) });
+    state.displayColumns.forEach((col) => {
+      tr.appendChild(el("td", { text: cellText(record, col) }));
+    });
+    tbody.appendChild(tr);
+  });
+
+  $("#empty-row").hidden = pageRecords.length !== 0;
+
+  $("#page-info").textContent = state.pageSize === "all" ? `全 ${filtered.length} 件` : `${state.page} / ${totalPages} ページ`;
+  $("#page-prev").disabled = state.pageSize === "all" || state.page <= 1;
+  $("#page-next").disabled = state.pageSize === "all" || state.page >= totalPages;
+}
+
+/* =========================================================
+   描画: 絞り込みパネル
+========================================================= */
+function renderFilterPanel() {
+  const panel = $("#filter-panel");
+  panel.textContent = "";
+  state.filterSpecs.forEach((spec) => {
+    const box = el("div", { class: "filter-field" });
+    box.appendChild(el("div", { class: "ff-label", text: spec.label }));
+    if (spec.kind === "choice") {
+      const choicesBox = el("div", { class: "filter-choices" });
+      spec.choices.forEach((choice) => {
+        const id = "flt-" + Math.random().toString(36).slice(2);
+        const cb = el("input", { type: "checkbox", id });
+        cb.addEventListener("change", () => {
+          const st = state.advancedFilters[spec.key] || (state.advancedFilters[spec.key] = { selected: new Set() });
+          if (cb.checked) st.selected.add(choice); else st.selected.delete(choice);
+          state.page = 1;
+          renderTable();
+        });
+        const label = el("label", { for: id }, [cb, " " + choice]);
+        choicesBox.appendChild(label);
+      });
+      box.appendChild(choicesBox);
+    } else if (spec.kind === "text") {
+      const input = el("input", { type: "text", placeholder: "含む文字列" });
+      input.addEventListener("input", () => {
+        state.advancedFilters[spec.key] = { value: input.value };
+        state.page = 1;
+        renderTable();
+      });
+      box.appendChild(input);
+    } else if (spec.kind === "range") {
+      const from = el("input", { type: "date" });
+      const to = el("input", { type: "date" });
+      function apply() {
+        const cur = state.advancedFilters[spec.key] || {};
+        cur.from = from.value ? new Date(from.value + "T00:00:00Z").getTime() : null;
+        cur.to = to.value ? new Date(to.value + "T23:59:59Z").getTime() : null;
+        state.advancedFilters[spec.key] = cur;
+        state.page = 1;
+        renderTable();
+      }
+      from.addEventListener("change", apply);
+      to.addEventListener("change", apply);
+      box.appendChild(el("div", { class: "filter-daterange" }, [from, " 〜 ", to]));
+    }
+    panel.appendChild(box);
+  });
+}
+
+/* =========================================================
+   描画: 詳細モーダル
+========================================================= */
+function openDetail(record) {
+  $("#detail-title").textContent = `レコード No.${record.recordNumber}`;
+  const body = $("#detail-body");
+  body.textContent = "";
+
+  // 基本情報
+  if (state.plan.main.length) {
+    const section = el("div", { class: "detail-section" }, [el("h3", { text: "基本情報" })]);
+    const table = el("table", { class: "kv" });
+    state.plan.main.forEach((f) => {
+      const rec = record.main[f.code];
+      const label = fieldLabel(f.code, f.label);
+      table.appendChild(el("tr", null, [
+        el("th", { text: label }),
+        el("td", null, [renderValueNode(rec.val, f.type)]),
+      ]));
+    });
+    section.appendChild(table);
+    body.appendChild(section);
+  }
+
+  // 添付ファイル等、CSVに含まれないフィールドの注記
+  if (state.plan.skippedFields.length) {
+    const section = el("div", { class: "detail-section" }, [el("h3", { text: "その他のフィールド" })]);
+    const p = el("div", { class: "file-note" }, [
+      "次のフィールドはCSVに含まれないため表示できません: " +
+      state.plan.skippedFields.map((f) => fieldLabel(f.code, f.code)).join(", "),
+    ]);
+    section.appendChild(p);
+    body.appendChild(section);
+  }
+
+  // サブテーブル
+  state.plan.subtables.forEach((st) => {
+    const entries = record.subtables[st.code] || [];
+    const def = state.fieldDefsByCode.get(st.code);
+    const title = (def && def.label) || st.code;
+    const section = el("div", { class: "detail-section" }, [el("h3", { text: title })]);
+    if (!entries.length) {
+      section.appendChild(el("div", { class: "muted-note", text: "データなし" }));
+    } else {
+      const table = el("table", { class: "subtable" });
+      const headRow = el("tr");
+      st.fields.forEach((f) => headRow.appendChild(el("th", { text: fieldLabel(f.code, f.code) })));
+      table.appendChild(headRow);
+      entries.forEach((entry) => {
+        const tr = el("tr");
+        st.fields.forEach((f) => {
+          const cellVal = entry[f.code].val;
+          tr.appendChild(el("td", null, [renderValueNode(cellVal, f.type)]));
+        });
+        table.appendChild(tr);
+      });
+      section.appendChild(table);
+    }
+    body.appendChild(section);
+  });
+
+  // システム項目
+  if (record.system.length) {
+    const section = el("div", { class: "detail-section" }, [el("h3", { text: "システム項目" })]);
+    const table = el("table", { class: "kv" });
+    record.system.forEach((s) => {
+      const type = guessTypeByLabel(s.label);
+      table.appendChild(el("tr", null, [
+        el("th", { text: s.label }),
+        el("td", null, [renderValueNode(s.val, type)]),
+      ]));
+    });
+    section.appendChild(table);
+    body.appendChild(section);
+  }
+
+  // コメント
+  const comments = state.comments.get(record.recordNumber) || [];
+  const cSection = el("div", { class: "detail-section" }, [el("h3", { text: `コメント (${comments.length})` })]);
+  if (!comments.length) {
+    cSection.appendChild(el("div", { class: "muted-note", text: state.comments.size ? "コメントなし" : "コメントファイル未読み込み" }));
+  } else {
+    comments.forEach((c) => {
+      const item = el("div", { class: "comment-item" });
+      item.appendChild(el("div", { class: "comment-meta" }, [`${c.user}　${formatDateTime(c.date, state.tzMode)}`]));
+      item.appendChild(el("div", { class: "comment-body", text: c.body }));
+      cSection.appendChild(item);
+    });
+  }
+  body.appendChild(cSection);
+
+  $("#overlay").hidden = false;
+}
+
+function renderValueNode(val, type) {
+  const raw = typeof val === "string" ? val : val.value;
+  const name = typeof val === "string" ? "" : val.name;
+  if (type && DATETIME_TYPES.has(type)) return document.createTextNode(formatDateTime(raw, state.tzMode));
+  if (type && MULTI_VALUE_TYPES.has(type) && raw) {
+    const wrap = el("div", { class: "chips" });
+    raw.split("\n").filter(Boolean).forEach((v) => wrap.appendChild(el("span", { class: "value-chip", text: v })));
+    return wrap;
+  }
+  if (name) {
+    const wrap = el("span");
+    wrap.appendChild(el("span", { class: "value-chip", text: name }));
+    if (raw && raw !== name) wrap.appendChild(document.createTextNode(" (" + raw + ")"));
+    return wrap;
+  }
+  return document.createTextNode(raw || "");
+}
+
+function closeDetail() { $("#overlay").hidden = true; }
+
+/* =========================================================
+   ビュー選択 / フィルタトグル
+========================================================= */
+function refreshDisplayColumnsAndFilters() {
+  state.displayColumns = columnsForView(state.currentViewName);
+  state.sortKey = null;
+  state.advancedFilters = {};
+  state.filterSpecs = buildFilterSpecs();
+  const toggle = $("#filter-toggle-btn");
+  toggle.hidden = state.filterSpecs.length === 0;
+  $("#filter-panel").hidden = true;
+  renderFilterPanel();
+}
+
+function populateViewSelect() {
+  const select = $("#view-select");
+  select.textContent = "";
+  const hasViews = state.viewsJson && state.viewsJson.views && Object.keys(state.viewsJson.views).length > 0;
+  if (!hasViews) { select.hidden = true; return; }
+  select.hidden = false;
+  select.appendChild(el("option", { value: "" }, ["すべてのフィールド"]));
+  const entries = Object.entries(state.viewsJson.views)
+    .filter(([, v]) => v.type === "LIST")
+    .sort((a, b) => Number(a[1].index || 0) - Number(b[1].index || 0));
+  entries.forEach(([name]) => select.appendChild(el("option", { value: name }, [name])));
+}
+
+/* =========================================================
+   ファイル読み込みパイプライン
+========================================================= */
+function updateFilenameLabels() {
+  Object.keys(state.files).forEach((key) => {
+    const row = $(`.drop-row[data-key="${key}"]`);
+    const label = row.querySelector('[data-role="filename"]');
+    const file = state.files[key];
+    if (file) { label.textContent = file.name; label.classList.add("set"); }
+    else { label.textContent = "未選択"; label.classList.remove("set"); }
+  });
+  $("#load-btn").disabled = !state.files.records;
+}
+
+function wireDropRow(key) {
+  const row = $(`.drop-row[data-key="${key}"]`);
+  const input = $(`#file-${key}`);
+  input.addEventListener("change", () => {
+    if (input.files[0]) { state.files[key] = input.files[0]; updateFilenameLabels(); }
+  });
+  row.addEventListener("dragover", (e) => { e.preventDefault(); row.classList.add("dragover"); });
+  row.addEventListener("dragleave", () => row.classList.remove("dragover"));
+  row.addEventListener("drop", (e) => {
+    e.preventDefault();
+    row.classList.remove("dragover");
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) { state.files[key] = f; updateFilenameLabels(); }
+  });
+  $(`[data-clear="${key}"]`).addEventListener("click", () => {
+    state.files[key] = null;
+    input.value = "";
+    updateFilenameLabels();
+  });
+}
+
+async function loadRecordsFromCSVText(text, layoutJson, onPhase) {
+  const rows = await parseCSV(text, (p) => onPhase && onPhase("レコードCSVを解析中...", p * 0.5));
+  if (!rows.length) throw new Error("レコードCSVが空です。");
+  const headers = rows[0];
+  const plan = planColumns(headers, layoutJson);
+  const groups = await groupRows(rows, plan, (p) => onPhase && onPhase("レコードをグループ化中...", 0.5 + p * 0.2));
+  const records = await buildRecordViews(groups, plan, (p) => onPhase && onPhase("レコードを構築中...", 0.7 + p * 0.3));
+  return { headers, plan, records };
+}
+
+async function runLoad({ recordsText, commentsText, layoutJson, fieldJson, viewsJson }, onProgress) {
+  if (!recordsText) throw new Error("レコードCSVが指定されていません。");
+
+  const recordsWeight = commentsText ? 0.8 : 1;
+  const { headers, plan, records } = await loadRecordsFromCSVText(recordsText, layoutJson, (text, ratio) => {
+    if (onProgress) onProgress(text, ratio * recordsWeight);
+  });
+  state.headers = headers;
+  state.plan = plan;
+  state.records = records;
+  state.layoutJson = layoutJson || null;
+  state.viewsJson = viewsJson || null;
+
+  const idx = indexFieldDefs(fieldJson);
+  state.fieldDefsByCode = idx.byCode;
+  state.fieldDefsByLabel = idx.byLabel;
+
+  if (commentsText) {
+    const commentRows = await parseCSV(commentsText, (p) => onProgress && onProgress("コメントCSVを解析中...", 0.8 + p * 0.1));
+    state.comments = await buildCommentsMap(commentRows, (p) => onProgress && onProgress("コメントを紐付け中...", 0.9 + p * 0.1));
+  } else {
+    state.comments = new Map();
+  }
+  if (onProgress) onProgress("表示を準備中...", 1);
+
+  state.currentViewName = "";
+  refreshDisplayColumnsAndFilters();
+  populateViewSelect();
+  renderStatusChips();
+
+  $("#setup").hidden = true;
+  $("#viewer").hidden = false;
+  $("#back-to-setup-btn").hidden = false;
+  state.page = 1;
+  renderTable();
+}
+
+/* ---- ローカルファイル選択からの読み込み ---- */
+async function loadFromLocalFiles() {
+  setSetupMsg("", "");
+  const recordsFile = state.files.records;
+  if (!recordsFile) { setSetupMsg("レコードCSVを選択してください。", "error"); return; }
+
+  const bigFiles = Object.values(state.files).filter((f) => f && f.size > LARGE_FILE_WARN_BYTES);
+  if (bigFiles.length) {
+    const ok = confirm(
+      `サイズの大きいファイルがあります (${bigFiles.map((f) => f.name).join(", ")})。\n` +
+      "読み込みに時間がかかる場合があります(画面は操作可能なまま進捗が表示されます)。続行しますか？\n" +
+      "（メモリ不足になる場合はファイルを分割してください）"
+    );
+    if (!ok) return;
+  }
+
+  showLoading("読み込み中...");
+  await nextFrame();
+  try {
+    const mode = state.encodingMode;
+    const recordsText = await fileToText(recordsFile, mode);
+    const commentsText = state.files.comments ? await fileToText(state.files.comments, mode) : null;
+    const layoutJson = state.files.layout ? JSON.parse(await fileToText(state.files.layout, "utf-8")) : null;
+    const fieldJson = state.files.field ? JSON.parse(await fileToText(state.files.field, "utf-8")) : null;
+    const viewsJson = state.files.views ? JSON.parse(await fileToText(state.files.views, "utf-8")) : null;
+    await runLoad({ recordsText, commentsText, layoutJson, fieldJson, viewsJson }, setLoadingProgress);
+    setSetupMsg("読み込みました。", "ok");
+  } catch (err) {
+    console.error(err);
+    setSetupMsg("読み込みに失敗しました: " + err.message, "error");
+  } finally {
+    hideLoading();
+  }
+}
+
+/* ---- クエリパラメータからの自動読み込み ---- */
+async function loadFromQueryParams() {
+  const params = new URLSearchParams(location.search);
+  const recordsUrl = params.get("records") || params.get("csv");
+  if (!recordsUrl) return false;
+  if (location.protocol === "file:") {
+    setSetupMsg("file:// では自動読み込みできません。Webサーバー経由で開くか、ファイルを直接選択してください。", "warn");
+    return false;
+  }
+  const commentsUrl = params.get("comments");
+  const layoutUrl = params.get("layout");
+  const fieldUrl = params.get("field") || params.get("fields");
+  const viewsUrl = params.get("views");
+  const mode = params.get("encoding") || "auto";
+  const tz = params.get("tz");
+  if (tz === "utc" || tz === "local") { state.tzMode = tz; $("#tz-select").value = tz; }
+  state.encodingMode = mode;
+  $("#encoding-select").value = ["auto", "shift_jis", "utf-8"].includes(mode) ? mode : "auto";
+
+  showLoading("URLからファイルを取得中...");
+  await nextFrame();
+  try {
+    const recordsText = decodeBuffer(await urlToArrayBuffer(recordsUrl), mode);
+    const commentsText = commentsUrl ? decodeBuffer(await urlToArrayBuffer(commentsUrl), mode) : null;
+    const layoutJson = layoutUrl ? JSON.parse(decodeBuffer(await urlToArrayBuffer(layoutUrl), "utf-8")) : null;
+    const fieldJson = fieldUrl ? JSON.parse(decodeBuffer(await urlToArrayBuffer(fieldUrl), "utf-8")) : null;
+    const viewsJson = viewsUrl ? JSON.parse(decodeBuffer(await urlToArrayBuffer(viewsUrl), "utf-8")) : null;
+    await runLoad({ recordsText, commentsText, layoutJson, fieldJson, viewsJson }, setLoadingProgress);
+    return true;
+  } catch (err) {
+    console.error(err);
+    setSetupMsg("URLからの読み込みに失敗しました: " + err.message, "error");
+    return false;
+  } finally {
+    hideLoading();
+  }
+}
+
+/* =========================================================
+   初期化
+========================================================= */
+function backToSetup() {
+  $("#viewer").hidden = true;
+  $("#setup").hidden = false;
+  $("#back-to-setup-btn").hidden = true;
+}
+
+function init() {
+  ["records", "comments", "layout", "field", "views"].forEach(wireDropRow);
+  updateFilenameLabels();
+
+  $("#encoding-select").addEventListener("change", (e) => { state.encodingMode = e.target.value; });
+  $("#tz-select").addEventListener("change", (e) => { state.tzMode = e.target.value; if (state.records.length) renderTable(); });
+  $("#load-btn").addEventListener("click", loadFromLocalFiles);
+  $("#back-to-setup-btn").addEventListener("click", backToSetup);
+
+  $("#search-input").addEventListener("input", (e) => {
+    state.searchQuery = e.target.value;
+    state.page = 1;
+    renderTable();
+  });
+  $("#view-select").addEventListener("change", (e) => {
+    state.currentViewName = e.target.value;
+    refreshDisplayColumnsAndFilters();
+    state.page = 1;
+    renderTable();
+  });
+  $("#filter-toggle-btn").addEventListener("click", () => {
+    const panel = $("#filter-panel");
+    panel.hidden = !panel.hidden;
+  });
+  $("#page-prev").addEventListener("click", () => { state.page = Math.max(1, state.page - 1); renderTable(); });
+  $("#page-next").addEventListener("click", () => { state.page += 1; renderTable(); });
+  $("#page-size-select").addEventListener("change", (e) => {
+    state.pageSize = e.target.value === "all" ? "all" : Number(e.target.value);
+    state.page = 1;
+    renderTable();
+  });
+
+  $("#detail-close-btn").addEventListener("click", closeDetail);
+  $("#overlay").addEventListener("click", (e) => { if (e.target.id === "overlay") closeDetail(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("#overlay").hidden) closeDetail(); });
+
+  loadFromQueryParams().then((loaded) => {
+    if (loaded) renderStatusChips();
+  });
+}
+
+document.addEventListener("DOMContentLoaded", init);
+</script>
+</body>
+</html>
