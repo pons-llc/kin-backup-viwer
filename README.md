@@ -1,4 +1,5 @@
 # kintone バックアップビューア
+*kintoneはcybozuの登録商標です。
 
 kintoneからバックアップした CSV / JSON ファイルを、インストール不要でブラウザだけで閲覧できるビューアです。実体は単一の HTML ファイル ([index.html](index.html)) で、ビルドやサーバーサイド処理は一切必要ありません。
 
