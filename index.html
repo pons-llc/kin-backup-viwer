@@ -90,10 +90,8 @@
   #filter-panel[hidden]{display:none;}
   .filter-field{border:1px solid var(--border);border-radius:4px;padding:8px 10px;background:#fcfdfd;}
   .filter-field .ff-label{font-weight:bold;font-size:12px;margin-bottom:6px;color:var(--accent-dark);}
-  .filter-choices{max-height:120px;overflow-y:auto;font-size:12px;}
-  .filter-choices label{display:block;margin-bottom:2px;cursor:pointer;}
-  .filter-field input[type=text],.filter-field input[type=date]{
-    width:100%;height:28px;border:1px solid var(--border);border-radius:4px;padding:0 6px;
+  .filter-field select,.filter-field input[type=date]{
+    width:100%;height:28px;border:1px solid var(--border);border-radius:4px;padding:0 6px;background:#fff;
   }
   .filter-daterange{display:flex;gap:6px;align-items:center;}
 
@@ -120,17 +118,33 @@
     justify-content:center;padding:32px 16px;z-index:100;overflow:auto;
   }
   #overlay[hidden]{display:none;}
-  #detail-panel{background:#fff;border-radius:8px;max-width:900px;width:100%;box-shadow:0 8px 30px rgba(0,0,0,.25);}
+  #detail-panel{
+    background:#fff;border-radius:8px;max-width:1100px;width:100%;max-height:85vh;
+    box-shadow:0 8px 30px rgba(0,0,0,.25);display:flex;flex-direction:column;
+  }
   #detail-head{
     display:flex;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid var(--border);
-    position:sticky;top:0;background:#fff;border-radius:8px 8px 0 0;
+    background:#fff;border-radius:8px 8px 0 0;flex:0 0 auto;
   }
   #detail-head h2{font-size:16px;color:var(--accent-dark);flex:1;}
-  #detail-body{padding:8px 20px 24px;}
+  #detail-layout{flex:1 1 auto;min-height:0;display:flex;}
+  #detail-main{flex:1 1 auto;min-width:0;overflow-y:auto;padding:8px 20px 24px;}
+  #detail-comments-pane{
+    flex:0 0 300px;width:300px;border-left:1px solid var(--border);background:#fafcfd;
+    overflow-y:auto;padding:16px 18px;
+  }
+  #detail-comments-heading{
+    font-size:13px;color:#fff;background:var(--accent);display:inline-block;padding:4px 12px;border-radius:3px;
+    margin:0 0 10px;
+  }
   .detail-section{margin-top:18px;}
   .detail-section h3{
     font-size:13px;color:#fff;background:var(--accent);display:inline-block;padding:4px 12px;border-radius:3px;
   }
+  .detail-row{display:flex;flex-wrap:wrap;gap:12px;margin-top:10px;}
+  .detail-field{flex:1 1 220px;min-width:160px;border:1px solid var(--border);border-radius:4px;background:#fcfdfd;padding:8px 10px;}
+  .detail-field-label{font-size:12px;color:var(--muted);margin-bottom:4px;}
+  .detail-field-value{white-space:pre-wrap;word-break:break-word;}
   table.kv{width:100%;border-collapse:collapse;margin-top:8px;}
   table.kv th{
     width:180px;text-align:left;background:#f2f6f8;padding:8px 10px;border:1px solid var(--border);
@@ -299,7 +313,13 @@
       <h2 id="detail-title">レコード</h2>
       <button type="button" class="btn btn-small" id="detail-close-btn">閉じる ✕</button>
     </div>
-    <div id="detail-body"></div>
+    <div id="detail-layout">
+      <div id="detail-main"></div>
+      <div id="detail-comments-pane">
+        <h3 id="detail-comments-heading">コメント</h3>
+        <div id="detail-comments-list"></div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -494,15 +514,12 @@ function escapeForFilename(s) { return s; }
    レイアウト解析
 ========================================================= */
 function flattenLayout(layoutJson) {
-  const main = [];
+  // main は ROW ブロック単位の二次元配列(行 x フィールド)で保持し、
+  // 詳細画面でフォームの行構成をそのまま再現できるようにする。
+  const mainRows = [];
   const subtables = [];
   const skipped = [];
 
-  function pushMain(f) {
-    if (!f || !f.code) return;
-    if (NON_CSV_FIELD_TYPES.has(f.type)) { skipped.push(f); return; }
-    main.push({ code: f.code, type: f.type });
-  }
   function pushSubtable(code, fields) {
     const list = [];
     (fields || []).forEach((sf) => {
@@ -518,15 +535,19 @@ function flattenLayout(layoutJson) {
       } else if (block.type === "GROUP" && Array.isArray(block.layout)) {
         walk(block.layout);
       } else if (Array.isArray(block.fields)) {
+        const row = [];
         block.fields.forEach((f) => {
-          if (f.type === "SUBTABLE") pushSubtable(f.code, f.fields);
-          else pushMain(f);
+          if (f.type === "SUBTABLE") { pushSubtable(f.code, f.fields); return; }
+          if (!f || !f.code) return;
+          if (NON_CSV_FIELD_TYPES.has(f.type)) { skipped.push(f); return; }
+          row.push({ code: f.code, type: f.type });
         });
+        if (row.length) mainRows.push(row);
       }
     });
   }
   walk(layoutJson.layout);
-  return { main, subtables, skipped };
+  return { mainRows, subtables, skipped };
 }
 
 function planColumns(headers, layoutJson) {
@@ -534,22 +555,30 @@ function planColumns(headers, layoutJson) {
   const idxRecNum = headers.indexOf("レコード番号");
   const plan = {
     idxStart, idxRecNum,
-    main: [], system: [], subtables: [], skippedFields: [],
+    main: [], mainRows: [], system: [], subtables: [], skippedFields: [],
     flatFallback: true,
   };
   let pointer = idxRecNum >= 0 ? idxRecNum + 1 : (idxStart >= 0 ? idxStart + 1 : 0);
 
   if (layoutJson && Array.isArray(layoutJson.layout)) {
-    const { main, subtables, skipped } = flattenLayout(layoutJson);
+    const { mainRows, subtables, skipped } = flattenLayout(layoutJson);
     plan.skippedFields = skipped;
 
     let ok = true;
     const mainPlan = [];
-    for (const f of main) {
-      const span = PAIRED_TYPES.has(f.type) ? 2 : 1;
-      if (pointer + span > headers.length) { ok = false; break; }
-      mainPlan.push({ code: f.code, type: f.type, label: headers[pointer], col: pointer, span });
-      pointer += span;
+    const mainRowsPlan = [];
+    outer:
+    for (const row of mainRows) {
+      const rowPlan = [];
+      for (const f of row) {
+        const span = PAIRED_TYPES.has(f.type) ? 2 : 1;
+        if (pointer + span > headers.length) { ok = false; break outer; }
+        const entry = { code: f.code, type: f.type, label: headers[pointer], col: pointer, span };
+        mainPlan.push(entry);
+        rowPlan.push(entry);
+        pointer += span;
+      }
+      mainRowsPlan.push(rowPlan);
     }
 
     if (ok) {
@@ -585,6 +614,7 @@ function planColumns(headers, layoutJson) {
           subtablePlan.push({ code: st.code, fields });
         }
         plan.main = mainPlan;
+        plan.mainRows = mainRowsPlan;
         plan.system = systemPlan;
         plan.subtables = subtablePlan;
         plan.flatFallback = false;
@@ -815,12 +845,24 @@ function sortValue(record, col) {
 
 /* =========================================================
    絞り込み用フィールド検出
+   対象は 日付・日時・ユーザー・グループ・組織・ラジオ・チェックボックス・
+   セレクトボックス・セレクトボックス(複数) のみ。
 ========================================================= */
+const FILTERABLE_TYPES = new Set([
+  "DATE", "DATETIME", "CREATED_TIME", "UPDATED_TIME",
+  "USER_SELECT", "GROUP_SELECT", "ORGANIZATION_SELECT",
+  "RADIO_BUTTON", "CHECK_BOX", "DROP_DOWN", "MULTI_SELECT",
+]);
+const CHOICE_OPTION_TYPES = new Set(["RADIO_BUTTON", "CHECK_BOX", "DROP_DOWN", "MULTI_SELECT"]);
+const FILTER_CHOICE_LIMIT = 200;
+
 function buildFilterSpecs() {
   const specs = [];
   const candidateCols = state.displayColumns.filter((c) => c.code !== "$recordNumber");
   candidateCols.forEach((col) => {
-    if (col.type && DATETIME_TYPES.has(col.type)) {
+    if (!col.type || !FILTERABLE_TYPES.has(col.type)) return;
+
+    if (DATETIME_TYPES.has(col.type)) {
       specs.push({ key: col.code, label: col.label, kind: "range", col });
       return;
     }
@@ -828,19 +870,31 @@ function buildFilterSpecs() {
       specs.push({ key: col.code, label: col.label, kind: "range", col, dateOnly: true });
       return;
     }
-    const values = new Set();
-    let tooMany = false;
-    for (const r of state.records) {
-      const txt = cellText(r, col);
-      if (txt === "") continue;
-      const parts = (col.type && MULTI_VALUE_TYPES.has(col.type)) ? txt.split(",").map((s) => s.trim()) : [txt];
-      parts.forEach((p) => values.add(p));
-      if (values.size > 25) { tooMany = true; break; }
+
+    // ラジオ/チェックボックス/セレクトボックス系は field.json の選択肢定義があればそれを使う
+    // (データ上に出現していない選択肢も候補に出せる)。無ければ実データから拾う。
+    let choices = null;
+    if (CHOICE_OPTION_TYPES.has(col.type)) {
+      const def = state.fieldDefsByCode.get(col.code) || state.fieldDefsByLabel.get(col.label);
+      if (def && def.options) {
+        choices = Object.values(def.options)
+          .sort((a, b) => Number(a.index) - Number(b.index))
+          .map((o) => o.label);
+      }
     }
-    if (!tooMany && values.size > 0 && values.size <= 25) {
-      specs.push({ key: col.code, label: col.label, kind: "choice", col, choices: Array.from(values).sort() });
-    } else {
-      specs.push({ key: col.code, label: col.label, kind: "text", col });
+    if (!choices) {
+      const values = new Set();
+      for (const r of state.records) {
+        const txt = cellText(r, col);
+        if (txt === "") continue;
+        const parts = (col.type && MULTI_VALUE_TYPES.has(col.type)) ? txt.split(",").map((s) => s.trim()) : [txt];
+        parts.forEach((p) => values.add(p));
+        if (values.size > FILTER_CHOICE_LIMIT) break;
+      }
+      choices = Array.from(values).sort();
+    }
+    if (choices.length) {
+      specs.push({ key: col.code, label: col.label, kind: "choice", col, choices });
     }
   });
   return specs;
@@ -865,12 +919,9 @@ function recordMatchesFilters(record, specs) {
     if (!state_) continue;
     const txt = cellText(record, spec.col);
     if (spec.kind === "choice") {
-      if (!state_.selected || state_.selected.size === 0) continue;
+      if (!state_.value) continue;
       const parts = (spec.col.type && MULTI_VALUE_TYPES.has(spec.col.type)) ? txt.split(",").map((s) => s.trim()) : [txt];
-      const hit = parts.some((p) => state_.selected.has(p));
-      if (!hit) return false;
-    } else if (spec.kind === "text") {
-      if (state_.value && txt.toLowerCase().indexOf(state_.value.toLowerCase()) < 0) return false;
+      if (!parts.includes(state_.value)) return false;
     } else if (spec.kind === "range") {
       if (!state_.from && !state_.to) continue;
       const raw = typeof rawColumnValue(record, spec.col) === "string" ? rawColumnValue(record, spec.col) : (rawColumnValue(record, spec.col).value);
@@ -980,28 +1031,18 @@ function renderFilterPanel() {
     const box = el("div", { class: "filter-field" });
     box.appendChild(el("div", { class: "ff-label", text: spec.label }));
     if (spec.kind === "choice") {
-      const choicesBox = el("div", { class: "filter-choices" });
+      const select = el("select");
+      select.appendChild(el("option", { value: "" }, ["(すべて)"]));
       spec.choices.forEach((choice) => {
-        const id = "flt-" + Math.random().toString(36).slice(2);
-        const cb = el("input", { type: "checkbox", id });
-        cb.addEventListener("change", () => {
-          const st = state.advancedFilters[spec.key] || (state.advancedFilters[spec.key] = { selected: new Set() });
-          if (cb.checked) st.selected.add(choice); else st.selected.delete(choice);
-          state.page = 1;
-          renderTable();
-        });
-        const label = el("label", { for: id }, [cb, " " + choice]);
-        choicesBox.appendChild(label);
+        select.appendChild(el("option", { value: choice }, [choice]));
       });
-      box.appendChild(choicesBox);
-    } else if (spec.kind === "text") {
-      const input = el("input", { type: "text", placeholder: "含む文字列" });
-      input.addEventListener("input", () => {
-        state.advancedFilters[spec.key] = { value: input.value };
+      select.addEventListener("change", () => {
+        if (select.value) state.advancedFilters[spec.key] = { value: select.value };
+        else delete state.advancedFilters[spec.key];
         state.page = 1;
         renderTable();
       });
-      box.appendChild(input);
+      box.appendChild(select);
     } else if (spec.kind === "range") {
       const from = el("input", { type: "date" });
       const to = el("input", { type: "date" });
@@ -1026,23 +1067,25 @@ function renderFilterPanel() {
 ========================================================= */
 function openDetail(record) {
   $("#detail-title").textContent = `レコード No.${record.recordNumber}`;
-  const body = $("#detail-body");
-  body.textContent = "";
+  const mainBody = $("#detail-main");
+  mainBody.textContent = "";
 
-  // 基本情報
-  if (state.plan.main.length) {
+  // 基本情報 (レイアウトの行構成をそのまま反映)
+  if (state.plan.mainRows.length) {
     const section = el("div", { class: "detail-section" }, [el("h3", { text: "基本情報" })]);
-    const table = el("table", { class: "kv" });
-    state.plan.main.forEach((f) => {
-      const rec = record.main[f.code];
-      const label = fieldLabel(f.code, f.label);
-      table.appendChild(el("tr", null, [
-        el("th", { text: label }),
-        el("td", null, [renderValueNode(rec.val, f.type)]),
-      ]));
+    state.plan.mainRows.forEach((row) => {
+      const rowEl = el("div", { class: "detail-row" });
+      row.forEach((f) => {
+        const rec = record.main[f.code];
+        const label = fieldLabel(f.code, f.label);
+        rowEl.appendChild(el("div", { class: "detail-field" }, [
+          el("div", { class: "detail-field-label", text: label }),
+          el("div", { class: "detail-field-value" }, [renderValueNode(rec.val, f.type)]),
+        ]));
+      });
+      section.appendChild(rowEl);
     });
-    section.appendChild(table);
-    body.appendChild(section);
+    mainBody.appendChild(section);
   }
 
   // 添付ファイル等、CSVに含まれないフィールドの注記
@@ -1053,7 +1096,7 @@ function openDetail(record) {
       state.plan.skippedFields.map((f) => fieldLabel(f.code, f.code)).join(", "),
     ]);
     section.appendChild(p);
-    body.appendChild(section);
+    mainBody.appendChild(section);
   }
 
   // サブテーブル
@@ -1079,7 +1122,7 @@ function openDetail(record) {
       });
       section.appendChild(table);
     }
-    body.appendChild(section);
+    mainBody.appendChild(section);
   });
 
   // システム項目
@@ -1094,23 +1137,24 @@ function openDetail(record) {
       ]));
     });
     section.appendChild(table);
-    body.appendChild(section);
+    mainBody.appendChild(section);
   }
 
-  // コメント
+  // コメント (右側の独立スクロールペインに表示)
   const comments = state.comments.get(record.recordNumber) || [];
-  const cSection = el("div", { class: "detail-section" }, [el("h3", { text: `コメント (${comments.length})` })]);
+  $("#detail-comments-heading").textContent = `コメント (${comments.length})`;
+  const commentsList = $("#detail-comments-list");
+  commentsList.textContent = "";
   if (!comments.length) {
-    cSection.appendChild(el("div", { class: "muted-note", text: state.comments.size ? "コメントなし" : "コメントファイル未読み込み" }));
+    commentsList.appendChild(el("div", { class: "muted-note", text: state.comments.size ? "コメントなし" : "コメントファイル未読み込み" }));
   } else {
     comments.forEach((c) => {
       const item = el("div", { class: "comment-item" });
       item.appendChild(el("div", { class: "comment-meta" }, [`${c.user}　${formatDateTime(c.date, state.tzMode)}`]));
       item.appendChild(el("div", { class: "comment-body", text: c.body }));
-      cSection.appendChild(item);
+      commentsList.appendChild(item);
     });
   }
-  body.appendChild(cSection);
 
   $("#overlay").hidden = false;
 }
