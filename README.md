@@ -3,6 +3,12 @@
 
 kintoneからバックアップした CSV / JSON ファイルを、インストール不要でブラウザだけで閲覧できるビューアです。実体は単一の HTML ファイル ([index.html](index.html)) で、ビルドやサーバーサイド処理は一切必要ありません。
 
+## デモ
+
+GitHub Pages上でサンプルデータを自動読み込みした状態をそのまま確認できます。
+
+https://pons-llc.github.io/kin-backup-viwer/index.html?records=sample%2F%E3%83%90%E3%83%83%E3%82%AF%E3%82%A2%E3%83%83%E3%83%97%E3%83%86%E3%82%B9%E3%83%88_20260909T151535%2B0900.csv&comments=sample%2F%E3%83%90%E3%83%83%E3%82%AF%E3%82%A2%E3%83%83%E3%83%97%E3%83%86%E3%82%B9%E3%83%88_20260909T151336%2B0900_comments.csv&layout=sample/layout.json&field=sample/field.json&views=sample/views.json&encoding=shift_jis
+
 ## できること
 
 - レコード CSV を読み込んでレコード一覧を表示・検索・絞り込み・ソート
@@ -37,6 +43,8 @@ http://localhost:8000/index.html?records=records.csv&comments=comments.csv&layou
 ```
 http://localhost:8000/index.html?records=sample%2F%E3%83%90%E3%83%83%E3%82%AF%E3%82%A2%E3%83%83%E3%83%97%E3%83%86%E3%82%B9%E3%83%88_20260909T151535%2B0900.csv&comments=sample%2F%E3%83%90%E3%83%83%E3%82%AF%E3%82%A2%E3%83%83%E3%83%97%E3%83%86%E3%82%B9%E3%83%88_20260909T151336%2B0900_comments.csv&layout=sample/layout.json&field=sample/field.json&views=sample/views.json&encoding=shift_jis
 ```
+
+同じ仕組みで、GitHub Pages(`https://pons-llc.github.io/kin-backup-viwer/`)上でも動作します(上記「デモ」を参照)。
 
 | パラメータ | 内容 | 必須 |
 | --- | --- | --- |
